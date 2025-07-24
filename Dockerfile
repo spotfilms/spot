@@ -1,15 +1,21 @@
-# Базовый образ с Node.js 20 (Alpine для компактного размера)
+# Указываем базовый образ
 FROM node:20-alpine
 
 # Рабочая директория внутри контейнера
-WORKDIR /usr/src/app
+WORKDIR /app
 
-# Копируем манифесты и устанавливаем зависимости
+# Копируем package.json и package-lock.json
 COPY package*.json ./
-RUN npm ci --only=production
 
-# Копируем весь исходный код
+# Устанавливаем зависимости
+RUN npm install
+
+# Копируем все файлы проекта, включая папку prisma
 COPY . .
+
+# Открываем порт, на котором будет работать приложение
+EXPOSE 4000
+
 
 # Команда запуска бота
 CMD ["node", "index.js"]
