@@ -1,125 +1,3 @@
-require('dotenv').config();
-
-const { Telegraf, Markup } = require('telegraf');
-const nodemailer    = require('nodemailer');
-
-const bot = new Telegraf(process.env.BOT_TOKEN);
-
-// SMTP‑транспорт для Gmail
-const transporter = nodemailer.createTransport({
-  host:   'smtp.gmail.com',
-  port:   465,
-  secure: true,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
-
-// Хранилище сессий в памяти
-const sessions = {};
-
-// Запуск нового диалога
-function startSession(ctx) {
-  const id = ctx.chat.id;
-  sessions[id] = { step: 'await_plate' };
-  ctx.reply(
-    '👋 Давайте оформим пропуск.',
-    Markup.removeKeyboard()
-  );
-  ctx.reply(
-    'Отправьте номер авто в формате «Марка x000xx00»\n' +
-    'Пример: Toyota A123BC77'
-  );
-}
-
-// /start
-bot.start(ctx => startSession(ctx));
-
-// Кнопка «Оформить пропуск»
-bot.action('NEW_PASS', ctx => {
-  ctx.answerCbQuery();
-  startSession(ctx);
-});
-
-// Обработка текстовых сообщений
-bot.on('text', async ctx => {
-  const id      = ctx.chat.id;
-  const txt     = ctx.message.text.trim();
-  const session = sessions[id];
-
-  // Если диалог не начат — показываем кнопку
-  if (!session) {
-    return ctx.reply(
-      'Нажмите кнопку ниже, чтобы оформить пропуск:',
-      Markup.inlineKeyboard([
-        Markup.button.callback('📝 Оформить пропуск', 'NEW_PASS')
-      ])
-    );
-  }
-
-  // Ждём номер авто
-  if (session.step === 'await_plate') {
-    // Поддерживает регион из 2 или 3 цифр
-    const plateRe = /^(\S+)\s+([A-ZА-Я]\d{3}[A-ZА-Я]{2}\d{2,3})$/iu;
-    const m       = txt.match(plateRe);
-    if (!m) {
-      return ctx.reply(
-        '❗ Неверный формат номера.\n' +
-        'Отправьте «Марка x000xx00» или «Марка x000xx000»\n' +
-        'Пример: Toyota A123BC77 или Toyota A123BC077'
-      );
-    }
-
-    const brand = m[1];
-    const plate = m[2].toUpperCase();
-
-    // Подставляем сегодняшнюю дату
-    const date = new Date().toLocaleDateString('ru-RU', {
-      day:   '2-digit',
-      month: '2-digit',
-      year:  '2-digit'
-    });
-
-    // Подготовка письма
-    const mailOpts = {
-      from:    `<${process.env.EMAIL_USER}>`,
-      to:      process.env.EMAIL_TO,
-      subject: 'ООО СПОТ',
-      text:
-`Прошу оформить пропуск на въезд на ${date} для ООО СПОТ
-
-${brand} ${plate}
-
-Эдуард
-89778959600`
-    };
-
-    try {
-      await transporter.sendMail(mailOpts);
-      await ctx.reply('✅ Заявка отправлена успешно!');
-    } catch (err) {
-      console.error('Ошибка отправки письма:', err);
-      await ctx.reply('❌ Не удалось отправить заявку. Попробуйте позже.');
-    }
-
-    // Завершаем сессию и предлагаем новую кнопку
-    delete sessions[id];
-    return ctx.reply(
-      'Если нужно оформить ещё один пропуск, нажмите кнопку ниже:',
-      Markup.inlineKeyboard([
-        Markup.button.callback('📝 Оформить пропуск', 'NEW_PASS')
-      ])
-    );
-  }
-});
-
-// Запуск бота
-bot.launch()
-   .then(() => console.log('Бот запущен'))
-   .catch(err => console.error('Не удалось запустить бота:', err));
-
-
 // require('dotenv').config();
 
 // const { Telegraf, Markup } = require('telegraf');
@@ -141,7 +19,7 @@ bot.launch()
 // // Хранилище сессий в памяти
 // const sessions = {};
 
-// // Функция для старта новой сессии
+// // Запуск нового диалога
 // function startSession(ctx) {
 //   const id = ctx.chat.id;
 //   sessions[id] = { step: 'await_plate' };
@@ -150,29 +28,27 @@ bot.launch()
 //     Markup.removeKeyboard()
 //   );
 //   ctx.reply(
-//     'Шаг 1️⃣: отправьте номер авто в формате «Марка x000xx00»\n' +
+//     'Отправьте номер авто в формате «Марка x000xx00»\n' +
 //     'Пример: Toyota A123BC77'
 //   );
 // }
 
-// // Обработчик команды /start
-// bot.start(ctx => {
+// // /start
+// bot.start(ctx => startSession(ctx));
+
+// // Кнопка «Оформить пропуск»
+// bot.action('NEW_PASS', ctx => {
+//   ctx.answerCbQuery();
 //   startSession(ctx);
 // });
 
-// // Обработчик нажатия на кнопку «Оформить пропуск»
-// bot.action('NEW_PASS', ctx => {
-//   ctx.answerCbQuery();        // убираем «часики»
-//   startSession(ctx);          // заново запускаем диалог
-// });
-
-// // Обработка любых текстовых сообщений
+// // Обработка текстовых сообщений
 // bot.on('text', async ctx => {
-//   const id  = ctx.chat.id;
-//   const txt = ctx.message.text.trim();
+//   const id      = ctx.chat.id;
+//   const txt     = ctx.message.text.trim();
 //   const session = sessions[id];
 
-//   // Если сессии нет — приглашаем нажать на кнопку
+//   // Если диалог не начат — показываем кнопку
 //   if (!session) {
 //     return ctx.reply(
 //       'Нажмите кнопку ниже, чтобы оформить пропуск:',
@@ -182,49 +58,38 @@ bot.launch()
 //     );
 //   }
 
-//   // Шаг 1: ждём номер авто
+//   // Ждём номер авто
 //   if (session.step === 'await_plate') {
+//     // Поддерживает регион из 2 или 3 цифр
 //     const plateRe = /^(\S+)\s+([A-ZА-Я]\d{3}[A-ZА-Я]{2}\d{2,3})$/iu;
-//     const m = txt.match(plateRe);
+//     const m       = txt.match(plateRe);
 //     if (!m) {
 //       return ctx.reply(
 //         '❗ Неверный формат номера.\n' +
-//         'Отправьте «Марка x000xx00»\n' +
-//         'Пример: Toyota A123BC77'
+//         'Отправьте «Марка x000xx00» или «Марка x000xx000»\n' +
+//         'Пример: Toyota A123BC77 или Toyota A123BC077'
 //       );
 //     }
-//     session.brand = m[1];
-//     session.plate = m[2].toUpperCase();
-//     session.step  = 'await_date';
-//     return ctx.reply(
-//       'Отлично! ✅\n' +
-//       'Шаг 2️⃣: теперь введите дату пропуска в формате DD.MM.YY\n' +
-//       'Пример: 22.07.25'
-//     );
-//   }
 
-//   // Шаг 2: ждём дату
-//   if (session.step === 'await_date') {
-//     const dateRe = /^(\d{2}\.\d{2}\.\d{2})$/;
-//     const m = txt.match(dateRe);
-//     if (!m) {
-//       return ctx.reply(
-//         '❗ Неверный формат даты.\n' +
-//         'Отправьте в виде DD.MM.YY\n' +
-//         'Пример: 22.07.25'
-//       );
-//     }
-//     session.date = m[1];
+//     const brand = m[1];
+//     const plate = m[2].toUpperCase();
 
-//     // Собираем и отправляем письмо
+//     // Подставляем сегодняшнюю дату
+//     const date = new Date().toLocaleDateString('ru-RU', {
+//       day:   '2-digit',
+//       month: '2-digit',
+//       year:  '2-digit'
+//     });
+
+//     // Подготовка письма
 //     const mailOpts = {
 //       from:    `<${process.env.EMAIL_USER}>`,
-//       to:      `<${process.env.EMAIL_TO}>`,
+//       to:      process.env.EMAIL_TO,
 //       subject: 'ООО СПОТ',
 //       text:
-// `Прошу оформить пропуск на въезд на ${session.date} для ООО СПОТ
+// `Прошу оформить пропуск на въезд на ${date} для ООО СПОТ
 
-// ${session.brand} ${session.plate}
+// ${brand} ${plate}
 
 // Эдуард
 // 89778959600`
@@ -238,7 +103,7 @@ bot.launch()
 //       await ctx.reply('❌ Не удалось отправить заявку. Попробуйте позже.');
 //     }
 
-//     // Удаляем сессию и предлагаем кнопку для новой заявки
+//     // Завершаем сессию и предлагаем новую кнопку
 //     delete sessions[id];
 //     return ctx.reply(
 //       'Если нужно оформить ещё один пропуск, нажмите кнопку ниже:',
@@ -249,166 +114,146 @@ bot.launch()
 //   }
 // });
 
+// // Запуск бота
 // bot.launch()
 //    .then(() => console.log('Бот запущен'))
 //    .catch(err => console.error('Не удалось запустить бота:', err));
 
-// // require('dotenv').config();
+require('dotenv').config();
 
-// // const { Telegraf } = require('telegraf');
-// // const nodemailer    = require('nodemailer');
+const { Telegraf, Markup } = require('telegraf');
+const nodemailer = require('nodemailer');
 
-// // const bot = new Telegraf(process.env.BOT_TOKEN);
+const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// // // SMTP‑транспорт для mail.ru / bk.ru
-// // const transporter = nodemailer.createTransport({
-// //   host:   'smtp.gmail.com',
-// //   port:   465,
-// //   secure: true,
-// //   auth: {
-// //     user: process.env.EMAIL_USER,
-// //     pass: process.env.EMAIL_PASS,
-// //   },
-// // });
+// SMTP‑транспорт для Gmail
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
-// // // В памяти храним состояние каждого чата
-// // const sessions = {};
+// Хранилище сессий в памяти
+const sessions = {};
 
-// // // Обработчик команды /start
-// // bot.start(ctx => {
-// //   const id = ctx.chat.id;
-// //   sessions[id] = { step: 'await_plate' };
-// //   ctx.reply('Здравствуйте! 👋\nДавайте оформим пропуск.');
-// //   ctx.reply('Шаг 1️⃣: отправьте номер авто в формате «Марка x000xx00»\nПример: Toyota A123BC77');
-// // });
+// Запуск нового диалога
+function startSession(ctx) {
+  const id = ctx.chat.id;
+  sessions[id] = { step: 'await_plate' };
+  ctx.reply(
+    '👋 Давайте оформим пропуск.',
+    Markup.removeKeyboard()
+  );
+  ctx.reply(
+    'Отправьте один или несколько номеров авто в формате «Марка x000xx00»\n' +
+    'Каждую строку — отдельным номером.\n\n' +
+    'Пример:\nToyota A123BC77\nHyundai B456DE78'
+  );
+}
 
-// // // Обработка любых текстовых сообщений
-// // bot.on('text', async ctx => {
-// //   const id  = ctx.chat.id;
-// //   const txt = ctx.message.text.trim();
-// //   const session = sessions[id];
+// /start
+bot.start(ctx => startSession(ctx));
 
-// //   // Если пользователь не начал /start
-// //   if (!session) {
-// //     return ctx.reply('Чтобы начать, введите команду /start');
-// //   }
+// Кнопка «Оформить пропуск»
+bot.action('NEW_PASS', ctx => {
+  ctx.answerCbQuery();
+  startSession(ctx);
+});
 
-// //   // Шаг 1: ждём номер авто
-// //   if (session.step === 'await_plate') {
-// //     const plateRe = /^(\S+)\s+([A-ZА-Я]\d{3}[A-ZА-Я]{2}\d{2})$/iu;
-// //     const m = txt.match(plateRe);
-// //     if (!m) {
-// //       return ctx.reply('Неверный формат номера.\nОтправьте «Марка x000xx00»\nПример: Toyota A123BC77');
-// //     }
-// //     session.brand = m[1];
-// //     session.plate = m[2].toUpperCase();
-// //     session.step  = 'await_date';
-// //     return ctx.reply(
-// //       'Отлично! ✅\n' +
-// //       'Шаг 2️⃣: теперь введите дату пропуска в формате DD.MM.YY\n' +
-// //       'Пример: 22.07.25'
-// //     );
-// //   }
+// Обработка текстовых сообщений
+bot.on('text', async ctx => {
+  const id = ctx.chat.id;
+  const txt = ctx.message.text.trim();
+  const session = sessions[id];
 
-// //   // Шаг 2: ждём дату
-// //   if (session.step === 'await_date') {
-// //     const dateRe = /^(\d{2}\.\d{2}\.\d{2})$/;
-// //     const m = txt.match(dateRe);
-// //     if (!m) {
-// //       return ctx.reply('Неверный формат даты.\nОтправьте в виде DD.MM.YY\nПример: 22.07.25');
-// //     }
-// //     session.date = m[1];
+  // Если диалог не начат — показываем кнопку
+  if (!session) {
+    return ctx.reply(
+      'Нажмите кнопку ниже, чтобы оформить пропуск:',
+      Markup.inlineKeyboard([
+        Markup.button.callback('📝 Оформить пропуск', 'NEW_PASS')
+      ])
+    );
+  }
 
-// //     // Всё есть — собираем и отправляем письмо
-// //     const mailOpts = {
-// //       from:    `<${process.env.EMAIL_USER}>`,
-// //       to:      'semyonvb@gmail.com',
-// //       subject: 'ООО СПОТ',
-// //       text:
-// // `Прошу оформить пропуск на въезд на ${session.date} для ООО СПОТ
+  // Ждём номер(а) авто
+  if (session.step === 'await_plate') {
+    const plateRe = /^(\S+)\s+([A-ZА-Я]\d{3}[A-ZА-Я]{2}\d{2,3})$/iu;
 
-// // ${session.brand} ${session.plate}
+    const lines = txt
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
 
-// // Эдуард
-// // 89778959600`
-// //     };
+    const validEntries = [];
+    const invalidEntries = [];
 
-// //     try {
-// //       await transporter.sendMail(mailOpts);
-// //       await ctx.reply('✅ Заявка отправлена успешно!');
-// //     } catch (err) {
-// //       console.error('Ошибка отправки письма:', err);
-// //       await ctx.reply('❌ Не удалось отправить заявку. Попробуйте позже.');
-// //     }
+    for (const line of lines) {
+      const m = line.match(plateRe);
+      if (m) {
+        const brand = m[1];
+        const plate = m[2].toUpperCase();
+        validEntries.push(`${brand} ${plate}`);
+      } else {
+        invalidEntries.push(line);
+      }
+    }
 
-// //     // Очищаем сессию
-// //     delete sessions[id];
-// //     return;
-// //   }
-// // });
+    if (validEntries.length === 0) {
+      return ctx.reply(
+        '❗ Ни одна строка не прошла проверку.\n' +
+        'Формат: Марка A123BC77\n\nПример:\nToyota A123BC77'
+      );
+    }
 
-// // bot.launch()
-// //    .then(() => console.log('Бот запущен'))
-// //    .catch(err => console.error('Не удалось запустить бота:', err));
+    const date = new Date().toLocaleDateString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit'
+    });
 
+    const mailOpts = {
+      from: `<${process.env.EMAIL_USER}>`,
+      to: process.env.EMAIL_TO,
+      subject: 'ООО СПОТ',
+      text:
+`Прошу оформить пропуск на въезд на ${date} для ООО СПОТ
 
-// // require('dotenv').config();
+${validEntries.join('\n')}
 
-// // const { Telegraf } = require('telegraf');
-// // const nodemailer    = require('nodemailer');
+Эдуард
+89778959600`
+    };
 
-// // const bot = new Telegraf(process.env.BOT_TOKEN);
+    try {
+      await transporter.sendMail(mailOpts);
 
-// // // SMTP‑транспорт для mail.ru / bk.ru
-// // const transporter = nodemailer.createTransport({
-// //   host:   'smtp.mail.ru',
-// //   port:   465,
-// //   secure: true,
-// //   auth: {
-// //     user: process.env.EMAIL_USER,
-// //     pass: process.env.EMAIL_PASS,
-// //   },
-// // });
+      let reply = `✅ Отправлено авто: ${validEntries.length}`;
+      if (invalidEntries.length > 0) {
+        reply += `\n❌ Пропущены строки:\n${invalidEntries.join('\n')}`;
+      }
+      await ctx.reply(reply);
+    } catch (err) {
+      console.error('Ошибка отправки письма:', err);
+      await ctx.reply('❌ Не удалось отправить заявку. Попробуйте позже.');
+    }
 
-// // bot.on('text', async (ctx) => {
-// //   const txt = ctx.message.text.trim();
-// //   // Ждём: Дата DD.MM.YY + пробел + Марка + пробел + номер x000xx00
-// //   const re = /^(\d{2}\.\d{2}\.\d{2})\s+(\S+)\s+([A-ZА-Я]\d{3}[A-ZА-Я]{2}\d{2})$/iu;
-// //   const m  = txt.match(re);
+    // Завершаем сессию и предлагаем кнопку
+    delete sessions[id];
+    return ctx.reply(
+      'Если нужно оформить ещё один пропуск, нажмите кнопку ниже:',
+      Markup.inlineKeyboard([
+        Markup.button.callback('📝 Оформить пропуск', 'NEW_PASS')
+      ])
+    );
+  }
+});
 
-// //   if (!m) {
-// //     return ctx.reply(
-// //       '❗ Неверный формат.\n' +
-// //       'Отправьте: Дата DD.MM.YY и «Марка x000xx00» через пробел\n' +
-// //       'Пример: 22.07.25 Toyota A123BC77'
-// //     );
-// //   }
-
-// //   const [ , date, brand, plateRaw ] = m;
-// //   const plate = plateRaw.toUpperCase();
-
-// //   const mailOpts = {
-// //     from:    `"ООО СПОТ" <${process.env.EMAIL_USER}>`,
-// //     to:      'semyonvb@gmail.com',
-// //     subject: 'Запрос на пропуск',
-// //     text:
-// // `Прошу оформить пропуск на въезд на ${date} для ООО СПОТ
-
-// // ${brand} ${plate}
-
-// // Эдуард
-// // 89778959600`
-// //   };
-
-// //   try {
-// //     await transporter.sendMail(mailOpts);
-// //     await ctx.reply('✅ Заявка отправлена на pass@gintsvetmet.ru');
-// //   } catch (err) {
-// //     console.error('Ошибка отправки письма:', err);
-// //     await ctx.reply('❌ Ошибка при отправке письма');
-// //   }
-// // });
-
-// // bot.launch()
-// //    .then(() => console.log('Бот запущен'))
-// //    .catch(err => console.error('Не удалось запустить бота:', err));
+// Запуск бота
+bot.launch()
+  .then(() => console.log('Бот запущен'))
+  .catch(err => console.error('Не удалось запустить бота:', err));
