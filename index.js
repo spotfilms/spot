@@ -3,17 +3,32 @@ require('dotenv').config();
 const { Telegraf, Markup } = require('telegraf');
 const nodemailer = require('nodemailer');
 
+// Простая функция для логирования с временем
+const log = (message) => {
+  const time = new Date().toLocaleTimeString('ru-RU');
+  console.log(`[${time}] ${message}`);
+};
+
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// SMTP-транспорт для Yandex
+// --- НАСТРОЙКИ ЯНДЕКСА ---
 const transporter = nodemailer.createTransport({
   host: 'smtp.yandex.ru',
   port: 465,
-  secure: true, // true для 465 порта, false для других
+  secure: true, // true для 465 порта
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    pass: process.env.EMAIL_PASS, // Здесь должен быть ПАРОЛЬ ПРИЛОЖЕНИЯ
   },
+});
+
+// Проверка соединения с почтой при запуске
+transporter.verify((error, success) => {
+  if (error) {
+    log(`❌ Ошибка подключения к почте (Yandex): ${error.message}`);
+  } else {
+    log('✅ Подключение к почте (Yandex) успешно установлено');
+  }
 });
 
 // Хранилище сессий в памяти
@@ -22,7 +37,12 @@ const sessions = {};
 // Запуск нового диалога
 function startSession(ctx) {
   const id = ctx.chat.id;
+  const username = ctx.from.username || ctx.from.first_name || 'Unknown';
+  
+  log(`Пользователь ${username} (${id}) начал оформление пропуска.`);
+  
   sessions[id] = { step: 'await_plate' };
+  
   ctx.reply(
     '👋 Давайте оформим пропуск.',
     Markup.removeKeyboard()
@@ -46,8 +66,12 @@ bot.action('NEW_PASS', ctx => {
 // Обработка текстовых сообщений
 bot.on('text', async ctx => {
   const id = ctx.chat.id;
+  const username = ctx.from.username || ctx.from.first_name || 'Unknown';
   const txt = ctx.message.text.trim();
   const session = sessions[id];
+
+  // Логируем входящее сообщение (можно сократить, если сообщения длинные)
+  log(`Сообщение от ${username} (${id}): "${txt.replace(/\n/g, ' | ')}"`);
 
   // Если диалог не начат — показываем кнопку
   if (!session) {
@@ -82,7 +106,10 @@ bot.on('text', async ctx => {
       }
     }
 
+    log(`Валидация для ${username}: Валидных=${validEntries.length}, Ошибочных=${invalidEntries.length}`);
+
     if (validEntries.length === 0) {
+      log(`⚠️ Пользователь ${username} прислал некорректные данные.`);
       return ctx.reply(
         '❗ Ни одна строка не прошла проверку.\n' +
         'Формат: Марка A123BC77\n\nПример:\nToyota A123BC77'
@@ -109,7 +136,9 @@ ${validEntries.join('\n')}
     };
 
     try {
+      log(`📤 Отправка письма на ${process.env.EMAIL_TO}...`);
       await transporter.sendMail(mailOpts);
+      log(`✅ Письмо успешно отправлено для пользователя ${username}.`);
 
       let reply = `✅ Отправлено авто: ${validEntries.length}`;
       if (invalidEntries.length > 0) {
@@ -117,7 +146,8 @@ ${validEntries.join('\n')}
       }
       await ctx.reply(reply);
     } catch (err) {
-      console.error('Ошибка отправки письма:', err);
+      log(`🔥 Ошибка отправки письма: ${err.message}`);
+      console.error(err); // Полный стек ошибки
       await ctx.reply('❌ Не удалось отправить заявку. Попробуйте позже.');
     }
 
@@ -134,5 +164,9 @@ ${validEntries.join('\n')}
 
 // Запуск бота
 bot.launch()
-  .then(() => console.log('Бот запущен'))
-  .catch(err => console.error('Не удалось запустить бота:', err));
+  .then(() => log('🤖 Бот успешно запущен и готов к работе'))
+  .catch(err => log(`💀 Не удалось запустить бота: ${err.message}`));
+
+// Обработка корректного завершения процесса (Ctrl+C)
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
