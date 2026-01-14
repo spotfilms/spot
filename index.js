@@ -5,12 +5,11 @@ const nodemailer = require('nodemailer');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// SMTP‑транспорт для Gmail
+// SMTP-транспорт для Yandex
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
+  host: 'smtp.yandex.ru',
   port: 465,
-  secure: true,
-  family: 4,  // <-- добавь это
+  secure: true, // true для 465 порта, false для других
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
